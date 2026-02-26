@@ -1,0 +1,1176 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>3D 影视级智能轨道制片平台 (PRO版)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111113; font-family: 'Segoe UI', Tahoma, sans-serif; color: #eee; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; outline: none; }
+        
+        /* UI 通用 */
+        button { width: 100%; margin-bottom: 10px; background: #2b2b36; color: white; border: 1px solid #444; padding: 8px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: 0.2s; font-weight: bold;}
+        button:hover { background: #3d3d4b; border-color: #555; }
+        button.primary { background: #2d6b45; border-color: #3b8a59; }
+        button.primary:hover { background: #3b8a59; }
+        button.record { background: #8a2d2d; border-color: #a83b3b; }
+        button.record:hover { background: #a83b3b; }
+        button.tool-btn.active { background: #4da6ff; color: #000; border-color: #4da6ff; }
+        
+        input[type="file"], select, input[type="text"], input[type="number"] { width: 100%; margin-bottom: 10px; font-size: 12px; background: #222; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; box-sizing: border-box;}
+        input[type="range"] { width: 100%; margin-bottom: 10px; cursor: pointer; }
+        
+        /* 顶部栏 */
+        #top-bar { position: fixed; top: 0; left: 0; width: 100vw; height: 60px; background: rgba(18, 18, 22, 0.95); border-bottom: 1px solid #333; z-index: 5000; display: flex; align-items: center; padding: 0 20px; box-sizing: border-box; gap: 15px; box-shadow: 0 4px 25px rgba(0,0,0,0.8); backdrop-filter: blur(10px); }
+        
+        /* 侧边面板 */
+        .panel { position: absolute; background: rgba(22, 22, 26, 0.85); backdrop-filter: blur(15px); padding: 15px; border-radius: 10px; border: 1px solid #333; box-shadow: 0 10px 40px rgba(0,0,0,0.8); box-sizing: border-box; display: flex; flex-direction: column; z-index: 10; transition: opacity 0.3s;}
+        #left-panel { top: 80px; left: 15px; width: 360px; bottom: 15px; overflow-y: auto; }
+        #right-panel { top: 80px; right: 15px; width: 300px; bottom: 15px; overflow-y: auto;}
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        
+        h3 { margin: 0 0 12px 0; font-size: 15px; color: #4da6ff; font-weight: 600; }
+        .section { margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 15px; }
+        .section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        
+        .list-container { flex-grow: 1; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 6px; padding: 8px; border: 1px solid #222; margin-bottom: 15px; min-height: 100px; max-height: 300px; }
+        .list-item { background: #222; border: 1px solid #444; border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 12px; color: #ccc; display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: 0.2s; }
+        .list-item:hover { border-color: #4da6ff; }
+        .list-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold;}
+        .list-actions { display: flex; gap: 4px; }
+        .list-actions button { margin: 0; padding: 4px 6px; font-size: 11px; width: auto; background: #444; border: none; }
+        
+        #color-palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; margin-top: 8px; }
+        
+        /* 加载页 */
+        #startup-loader { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #0b0b0d; z-index: 10000; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 50px; height: 50px; border: 4px solid #333; border-top: 4px solid #4da6ff; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .progress-bar { width: 300px; height: 6px; background: #222; border-radius: 3px; overflow: hidden; margin-top: 15px; }
+        .progress-fill { height: 100%; width: 0%; background: #4da6ff; transition: width 0.3s; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* 录制指示器 */
+        #recording-indicator { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); background: rgba(200, 40, 40, 0.9); color: white; padding: 10px 30px; border-radius: 30px; font-weight: bold; font-size: 16px; display: none; z-index: 100; animation: pulse 1s infinite; pointer-events: none; box-shadow: 0 4px 15px rgba(255,0,0,0.5);}
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        /* 弹窗与提示 */
+        #focus-dialog, #speed-dialog { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(25, 25, 30, 0.98); padding: 25px; border-radius: 12px; border: 1px solid #4da6ff; z-index: 100000; box-shadow: 0 10px 50px rgba(0,0,0,0.9); color: #fff; display: none; width: 320px; }
+        #temp-ui-layer { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: rgba(0, 200, 100, 0.9); color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 15px; display: none; z-index: 9999; pointer-events: none; text-align: center;}
+        
+        .shortcut-hint { font-size: 11px; color: #888; margin-top: 5px; background: #222; padding: 5px; border-radius: 4px; border: 1px solid #333; }
+        .hotkey { color: #4da6ff; font-weight: bold; margin-right: 3px; }
+
+        /* 教程遮罩 */
+        #tutorial-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 20000; pointer-events: auto; display: none; }
+        #tutorial-mask { width: 100%; height: 100%; fill: rgba(0,0,0,0.85); }
+        #tutorial-highlight { transition: all 0.4s ease; stroke: #4da6ff; stroke-width: 3; fill: transparent; rx: 10; }
+        #tutorial-box { position: absolute; background: #fff; color: #000; padding: 20px; border-radius: 8px; width: 300px; pointer-events: auto; box-shadow: 0 0 20px rgba(77,166,255,0.5); transition: all 0.4s ease; }
+        
+        /* 字体加载条 */
+        #font-loader-bar { position: fixed; bottom: 20px; right: 20px; width: 200px; background: #222; padding: 10px; border-radius: 8px; border: 1px solid #444; z-index: 9999; display: none; }
+        
+        /* 资源链接折叠 */
+        details { background: #222; border: 1px solid #444; border-radius: 4px; padding: 5px; margin-bottom: 10px; }
+        summary { cursor: pointer; font-weight: bold; font-size: 12px; color: #4da6ff; outline: none; }
+        .res-link { display: block; color: #ccc; text-decoration: none; font-size: 12px; margin: 5px 0; padding: 2px 5px; background: #333; border-radius: 3px; }
+        .res-link:hover { background: #444; color: white; }
+
+        #confirm-multi-btn { display:none; background: #2d6b45; animation: pulse 2s infinite; }
+    </style>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.164.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.164.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://unpkg.com/occt-import-js@0.0.22/dist/occt-import-js.js"></script>
+</head>
+<body>
+    <div id="startup-loader">
+        <div class="spinner"></div>
+        <div style="font-size: 20px; font-weight: bold; color: #fff;">正在初始化 PRO 版内核</div>
+        <div id="loading-text" style="font-size: 13px; color: #888; margin-top: 10px;">资源配置中...</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <!-- 教程遮罩 -->
+    <div id="tutorial-overlay">
+        <svg width="100%" height="100%" style="position: absolute; top:0; left:0; pointer-events: none;">
+            <defs>
+                <mask id="spotlight-mask">
+                    <rect width="100%" height="100%" fill="white" />
+                    <rect id="tutorial-rect" x="0" y="0" width="0" height="0" rx="10" fill="black" />
+                </mask>
+            </defs>
+            <rect width="100%" height="100%" fill="rgba(0,0,0,0.85)" mask="url(#spotlight-mask)" />
+            <rect id="tutorial-stroke" x="0" y="0" width="0" height="0" rx="10" fill="none" stroke="#4da6ff" stroke-width="3" />
+        </svg>
+        <div id="tutorial-box">
+            <h3 id="tut-title" style="margin-top:0; color:#000;">欢迎</h3>
+            <p id="tut-desc" style="font-size:13px; line-height:1.5; margin-bottom:15px;">这里是教程内容。</p>
+            <div style="display:flex; justify-content:space-between;">
+                <button onclick="skipTutorial()" style="width:auto; background:#ccc; color:#333; border:none; margin:0;">跳过</button>
+                <button onclick="nextTutorialStep()" style="width:auto; background:#4da6ff; color:#fff; border:none; margin:0;" class="primary">下一步</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 字体加载条 -->
+    <div id="font-loader-bar">
+        <div style="font-size:12px; margin-bottom:5px;">正在下载中文字体...</div>
+        <div style="height:4px; background:#444; width:100%;"><div id="font-load-fill" style="height:100%; width:0%; background:#4da6ff;"></div></div>
+    </div>
+
+    <!-- 顶栏 -->
+    <div id="top-bar">
+        <button id="btn-toggle-ui" style="width:auto; margin:0; background:#3b3b4a; padding:6px 15px;">👁️ 隐藏/展示 UI</button>
+        <button id="btn-reset-view" style="width:auto; margin:0; background:#3b3b4a; padding:6px 15px;">🔭 归位</button>
+        <div style="width:1px; height:24px; background:#444;"></div>
+        
+        <label style="margin:0; color:#ddd; font-weight:bold; width:auto; display:inline;">录制编码:</label>
+        <select id="video-encoder" style="width:auto; margin:0; background:#111;">
+            <option value="h264">H.264 (兼容)</option>
+            <option value="h265">H.265 (高清)</option>
+            <option value="av1">AV1 (高压)</option>
+        </select>
+
+        <label style="margin:0 0 0 10px; color:#ddd; font-weight:bold; width:auto; display:inline;">画质:</label>
+        <select id="video-res" style="width:auto; margin:0; background:#111;">
+            <option value="1920x1080">1080P 横屏</option>
+            <option value="1080x1920">1080P 竖屏</option>
+            <option value="2560x1440">2K 横屏</option>
+            <option value="3840x2160">4K 横屏</option>
+        </select>
+        <div style="flex-grow:1;"></div>
+        <button id="btn-play-top" class="primary" style="width:auto; margin:0; padding:8px 24px;">▶ 预览</button>
+        <button id="btn-record-top" class="record" style="width:auto; margin:0; padding:8px 24px;">⏺ 录制</button>
+    </div>
+
+    <div id="recording-indicator">🎥 录制中... (ESC 终止)</div>
+    <div id="temp-ui-layer">提示文字</div>
+    <div id="canvas-container" tabindex="0"></div>
+    <canvas id="temp-canvas" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
+
+    <div id="left-panel" class="panel">
+        <div class="section" id="tut-import">
+            <h3>📥 导入与模型</h3>
+            <input type="file" id="file-input" accept=".stp,.step,.stl" multiple title="导入3D模型">
+            <input type="text" id="text-input" placeholder="输入文字...">
+            <select id="text-font">
+                <option value="en">英文字库 (Helvetiker)</option>
+                <option value="cn">中文字库 (仿宋 - 在线获取)</option>
+            </select>
+            <button id="btn-add-text" style="background:#4da6ff; color:#000;">➕ 生成 3D 文字</button>
+            <button id="btn-add-cube" style="background:#444;">📦 添加测试正方体</button>
+            <div class="shortcut-hint">
+                快捷键: <span class="hotkey">T</span>移动 <span class="hotkey">R</span>旋转 <span class="hotkey">S</span>缩放 <span class="hotkey">Del</span>删除
+            </div>
+            <label style="margin-top:8px; cursor:pointer;"><input type="checkbox" id="snap-45" style="width:auto;"> 启用 45° 旋转吸附</label>
+        </div>
+
+        <div class="section" id="tut-color">
+            <h3>🎨 快速调色</h3>
+            <div id="color-palette"></div>
+        </div>
+
+        <div class="section" id="tut-track" style="border: 1px solid #4da6ff; padding: 12px; border-radius: 8px; background: rgba(77,166,255,0.05); margin-bottom:0;">
+            <h3>✒️ 轨道与镜头</h3>
+            <div style="display:flex; gap:5px;">
+                <select id="draw-type" style="flex:1; margin-bottom:5px;">
+                    <option value="free">🖌️ 自由手绘</option>
+                    <option value="line">📏 两点直线</option>
+                    <option value="curve">➰ 三点抛线</option>
+                    <option value="multi">🖌️ 多点成弧</option>
+                </select>
+                <button id="btn-toggle-draw" class="tool-btn" style="flex:1; margin-bottom:5px;">🖊️ 绘图模式</button>
+            </div>
+            <button id="confirm-multi-btn" onclick="finishMultiCurve()">✅ 确认生成多点弧线</button>
+            
+            <div style="display:flex; gap:5px; margin-top:5px;">
+                <button id="btn-add-camera" class="tool-btn" style="flex:1; background:#553377; border-color:#8855aa; margin:0; padding:5px;">🎥 运镜</button>
+                <button id="btn-add-focus" class="tool-btn" style="flex:1; background:#774433; border-color:#aa6644; margin:0; padding:5px;">🎯 锁焦</button>
+                <button id="btn-add-pause" class="tool-btn" style="flex:1; background:#887722; border-color:#aa9933; margin:0; padding:5px;">⏳ 停顿</button>
+                <button id="btn-add-speed" class="tool-btn" style="flex:1; background:#227777; border-color:#339999; margin:0; padding:5px;">⚡ 变速</button>
+            </div>
+
+            <label style="margin-top:10px;">相机朝向逻辑:</label>
+            <select id="lookat-mode">
+                <option value="forward">沿轨道前方</option>
+                <option value="closest">智能追踪最近物体</option>
+                <option value="fixed">固定看向中心</option>
+                <option value="custom">自定义方向</option>
+            </select>
+            <div id="custom-dir-div" style="display:none; display:flex; gap:5px; margin-bottom:10px;">
+                <input type="number" id="dir-x" value="0" placeholder="X"><input type="number" id="dir-y" value="-1" placeholder="Y"><input type="number" id="dir-z" value="0" placeholder="Z">
+            </div>
+
+            <label>镜头平滑度: <span id="smooth-val">85</span></label>
+            <input type="range" id="camera-smoothness" min="0" max="100" value="85">
+
+            <label style="margin-top:10px;">单圈时长设置 (无上限):</label>
+            <div style="display:flex; gap:5px;">
+                <input type="number" id="anim-duration-val" value="15" min="1" step="0.1">
+                <select id="anim-duration-unit" style="width:80px;">
+                    <option value="s">秒</option>
+                    <option value="m">分</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div id="right-panel" class="panel">
+        <h3 id="tut-list">📦 场景模型</h3>
+        <div id="model-list" class="list-container"></div>
+        <h3 style="margin-top:10px;">📋 轨道列表</h3>
+        <div id="track-list" class="list-container"></div>
+        
+        <div style="margin-top:20px;">
+            <details>
+                <summary>📚 免费商用模型推荐 (展开)</summary>
+                <a href="https://sketchfab.com/features/free-3d-models" target="_blank" class="res-link">Sketchfab (选CC0/CC-BY)</a>
+                <a href="https://polyhaven.com/models" target="_blank" class="res-link">Poly Haven (全免费高质量)</a>
+                <a href="https://www.kenney.nl/assets/3d-assets" target="_blank" class="res-link">Kenney Assets (低模风格)</a>
+                <a href="https://www.cgtrader.com/free-3d-models" target="_blank" class="res-link">CGTrader Free</a>
+                <a href="https://www.turbosquid.com/Search/3D-Models/free" target="_blank" class="res-link">TurboSquid Free</a>
+            </details>
+        </div>
+    </div>
+
+    <!-- 焦点段弹窗 -->
+    <div id="focus-dialog">
+        <h3 style="margin-top:0; border-bottom:1px solid #4da6ff; padding-bottom:10px;">🎯 智能锁焦设置</h3>
+        <label>目标类型：</label>
+        <select id="focus-type">
+            <option value="model">场景模型</option>
+            <option value="dir">固定空间向量 (生成激光指示)</option>
+        </select>
+        <div id="focus-model-area">
+            <label>选择目标:</label>
+            <select id="focus-target-model"></select>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="primary" onclick="confirmFocusRange()" style="margin:0;">确定</button>
+            <button onclick="cancelFocusRange()" style="margin:0; background:#555;">取消</button>
+        </div>
+    </div>
+
+    <!-- 变速点弹窗 -->
+    <div id="speed-dialog">
+        <h3 style="margin-top:0; border-bottom:1px solid #4da6ff; padding-bottom:10px;">⚡ 设置变速节点</h3>
+        <label>节点类型:</label>
+        <select id="speed-type">
+            <option value="accel">🚀 加速点</option>
+            <option value="decel">🐌 减速点</option>
+            <option value="const">➡️ 常速/恢复点</option>
+        </select>
+        <label>速度倍率 (0.01x - 1000x):</label>
+        <input type="number" id="speed-val" min="0.01" max="1000" step="0.1" value="1.0">
+        <div class="help-text" style="color:#aaa; font-size:11px; margin-bottom:10px;">
+            注意: 该点的瞬时速度将变为基础速度的 N 倍。<br>系统将在点与点之间平滑插值。
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="primary" onclick="confirmSpeedPoint()" style="margin:0;">确定</button>
+            <button onclick="cancelSpeedPoint()" style="margin:0; background:#555;">取消</button>
+        </div>
+    </div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { TransformControls } from 'three/addons/controls/TransformControls.js';
+    import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+    import { FontLoader } from 'three/addons/loaders/FontLoader.js';
+    import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
+    // 全局变量
+    let scene, camera, renderer, orbit, transformControl;
+    let modelGroup, tracksGroup, helpersGroup, groundPlane, gridHelper;
+    let occt;
+    
+    let loadedModels = [];
+    let tracks = [];
+    let trackCounter = 1;
+    let selectedObject = null;
+    let currentTool = null; // 'draw', 'addCamera', 'addFocus', 'addPause', 'addSpeed'
+    let isDrawing = false;
+    
+    // 多点绘制状态
+    let multiPointDraw = { points: [], spheres: [] };
+
+    // 焦点范围状态
+    let focusState = 0; let tempFocusTrack = null; let tempFocusStartT = 0; let tempFocusEndT = 0;
+    let tempFocusMarkerStart = null; let tempFocusMarkerEnd = null;
+
+    // 绘制临时变量
+    let rawDrawPoints = []; let tempDrawPoints = []; let tempDrawSpheres = [];
+
+    // 录播与动画
+    let isPlaying = false;
+    let animStartTime = 0;
+    let originalCameraState = { pos: new THREE.Vector3(), quat: new THREE.Quaternion() };
+    let mediaRecorder = null; let recordedChunks = []; let lastClickTime = 0; let uiVisible = true;
+    let originalW, originalH;
+
+    // 字体资源管理
+    let chineseFont = null;
+    let isFontLoading = false;
+    const CN_FONT_DIRECT = "https://github.com/linlelest/L3D_chfont/releases/download/font/FangSong_Regular.json";
+    const CN_FONT_PROXY = "https://hk.gh-proxy.org/https://github.com/linlelest/L3D_chfont/releases/download/font/FangSong_Regular.json";
+    let cnFontUrlToUse = CN_FONT_DIRECT; 
+
+    const tempCanvas = document.getElementById('temp-canvas');
+    const ctx = tempCanvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+
+    // ================= 初始化与网络检测 =================
+    async function checkConnectivity() {
+        // 简单尝试 fetch direct 链接的 headers，超时则认为需要代理
+        // 由于跨域限制，可能拿不到具体状态，但可以靠 catch 捕获
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), 2000); // 2秒检测
+        try {
+            await fetch(CN_FONT_DIRECT, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' });
+            cnFontUrlToUse = CN_FONT_DIRECT;
+            console.log("Connect: Direct GitHub");
+        } catch (e) {
+            cnFontUrlToUse = CN_FONT_PROXY;
+            console.log("Connect: Using Proxy");
+        } finally {
+            clearTimeout(id);
+        }
+    }
+
+    async function initSystem() {
+        await checkConnectivity();
+        const progressFill = document.getElementById('progress-fill');
+        let p = 0; const simInterval = setInterval(() => { p += Math.random()*8; if(p>85) p=85; progressFill.style.width = `${p}%`; }, 100);
+        try {
+            occt = await occtimportjs({ locateFile: (file) => `https://unpkg.com/occt-import-js@0.0.22/dist/${file}` });
+            clearInterval(simInterval); progressFill.style.width = `100%`;
+            setTimeout(() => { document.getElementById('startup-loader').style.display = 'none'; initThreeJS(); startTutorial(); }, 600);
+        } catch (e) {
+            clearInterval(simInterval); alert("CAD 内核拉取失败，请刷新重试！");
+        }
+    }
+
+    function initThreeJS() {
+        scene = new THREE.Scene(); scene.background = new THREE.Color(0x111113); scene.fog = new THREE.FogExp2(0x111113, 0.0012);
+        camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 8000); camera.position.set(60, 50, 60);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement); 
+        tempCanvas.width = window.innerWidth; tempCanvas.height = window.innerHeight;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(100, 200, 50); dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        groundPlane = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x1e1e24, roughness: 1 }));
+        groundPlane.receiveShadow = true; scene.add(groundPlane);
+        gridHelper = new THREE.GridHelper(500, 100, 0x333333, 0x222222); gridHelper.position.y = 0.05; scene.add(gridHelper);
+
+        modelGroup = new THREE.Group(); scene.add(modelGroup);
+        tracksGroup = new THREE.Group(); scene.add(tracksGroup);
+        helpersGroup = new THREE.Group(); scene.add(helpersGroup);
+
+        orbit = new OrbitControls(camera, renderer.domElement); 
+        orbit.enableDamping = true; orbit.dampingFactor = 0.05; orbit.maxPolarAngle = Math.PI / 2;
+        orbit.enableZoom = false; // 禁用默认缩放，使用自定义的鼠标中心缩放逻辑
+
+        transformControl = new TransformControls(camera, renderer.domElement);
+        transformControl.addEventListener('dragging-changed', (e) => orbit.enabled = !e.value);
+        transformControl.addEventListener('change', () => {
+            if (selectedObject && selectedObject.userData.isControlPoint) selectedObject.userData.parentTrack.updateCurve();
+        });
+        scene.add(transformControl);
+
+        setupUI(); setupEvents(); animateLoop();
+    }
+
+    // ================= 教程引导逻辑 =================
+    let tutorialStep = 0;
+    const tutorialSteps = [
+        { el: null, title: "欢迎使用 Pro 版", text: "本教程将指引您熟悉核心功能。<br>点击“下一步”开始，或“跳过”直接使用。<br><b style=\"color: red;\">本网页仅限电脑使用！！！</b><br>请注意：由于浏览器限制，若您要使用中文立体字，请先访问：<br>edge浏览器：<a href=\"https://microsoftedge.microsoft.com/addons/detail/allow-cors-accesscontro/bhjepjpgngghppolkjdhckmnfphffdag\" target=\"_blank\">https://microsoftedge.microsoft.com/addons/detail/allow-cors-accesscontro/bhjepjpgngghppolkjdhckmnfphffdag</a><br>google浏览器：<a href=\"https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf\" target=\"_blank\">https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf</a> <br>进行下载，然后点亮插件按钮（左侧图标），然后进行下载！" },
+        { el: "tut-import", title: "导入与建模", text: "支持 STP/STEP/STL 格式导入。<br>点击“添加测试正方体”可快速上手。<br>支持中英文字体 3D 生成。" },
+        { el: "tut-color", title: "快速调色", text: "选中模型后，点击色块即可一键换色。" },
+        { el: "tut-track", title: "轨道绘制", text: "选择画笔模式，在场景中绘制相机运动轨迹。<br>新增多点成弧功能，绘制更精准。" },
+        { el: "btn-add-camera", title: "运镜控制", text: "点击轨道添加摄像机，控制视角的平滑过渡。" },
+        { el: "btn-add-focus", title: "智能锁焦", text: "设定区间，使相机强制看向特定物体或方向。" },
+        { el: "tut-list", title: "大纲视图", text: "右侧管理所有模型与轨道对象。" },
+        { el: "btn-play-top", title: "预览与导出", text: "完成后点击预览，或录制高清视频。<br>支持 H.265 编码与 4K 分辨率。" }
+    ];
+
+    function updateSpotlight(targetEl) {
+        const overlay = document.getElementById('tutorial-overlay');
+        const box = document.getElementById('tutorial-box');
+        const hlRect = document.getElementById('tutorial-rect');
+        const hlStroke = document.getElementById('tutorial-stroke');
+        
+        if (!targetEl) {
+            hlRect.setAttribute('x', '0'); hlRect.setAttribute('y', '0'); hlRect.setAttribute('width', '0'); hlRect.setAttribute('height', '0');
+            hlStroke.setAttribute('x', '0'); hlStroke.setAttribute('y', '0'); hlStroke.setAttribute('width', '0'); hlStroke.setAttribute('height', '0');
+            box.style.top = '50%'; box.style.left = '50%'; box.style.transform = 'translate(-50%, -50%)';
+            return;
+        }
+
+        const rect = targetEl.getBoundingClientRect();
+        const pad = 10;
+        const x = rect.left - pad; const y = rect.top - pad; const w = rect.width + pad*2; const h = rect.height + pad*2;
+
+        hlRect.setAttribute('x', x); hlRect.setAttribute('y', y); hlRect.setAttribute('width', w); hlRect.setAttribute('height', h);
+        hlStroke.setAttribute('x', x); hlStroke.setAttribute('y', y); hlStroke.setAttribute('width', w); hlStroke.setAttribute('height', h);
+
+        // 弹窗位置自适应
+        box.style.transform = 'none';
+        if (x + w + 320 < window.innerWidth) { box.style.left = (x + w + 20) + 'px'; box.style.top = Math.max(20, y) + 'px'; }
+        else { box.style.left = (x - 320 - 20) + 'px'; box.style.top = Math.max(20, y) + 'px'; }
+    }
+
+    window.startTutorial = () => {
+        document.getElementById('tutorial-overlay').style.display = 'block';
+        tutorialStep = 0; showStep();
+    };
+    window.skipTutorial = () => { document.getElementById('tutorial-overlay').style.display = 'none'; };
+    window.nextTutorialStep = () => {
+        tutorialStep++;
+        if(tutorialStep >= tutorialSteps.length) { skipTutorial(); return; }
+        showStep();
+    };
+
+    function showStep() {
+        const step = tutorialSteps[tutorialStep];
+        document.getElementById('tut-title').innerText = step.title;
+        document.getElementById('tut-desc').innerHTML = step.text;
+        const el = step.el ? document.getElementById(step.el) : null;
+        updateSpotlight(el);
+    }
+
+    // ================= 逻辑实现 =================
+
+    // 加载中文字体
+    async function loadChineseFont() {
+        if (chineseFont) return Promise.resolve(chineseFont);
+        if (isFontLoading) return new Promise(r => { const i = setInterval(() => { if(chineseFont){clearInterval(i);r(chineseFont);} }, 100); });
+
+        isFontLoading = true;
+        const loaderBar = document.getElementById('font-loader-bar');
+        const fill = document.getElementById('font-load-fill');
+        loaderBar.style.display = 'block';
+        fill.style.width = '10%';
+
+        return new Promise((resolve, reject) => {
+            const loader = new FontLoader();
+            // 模拟进度条
+            let p = 10; const pInt = setInterval(() => { p += Math.random()*5; if(p>90) p=90; fill.style.width = p+'%'; }, 200);
+
+            loader.load(cnFontUrlToUse, function (font) {
+                clearInterval(pInt); fill.style.width = '100%';
+                chineseFont = font;
+                setTimeout(() => { loaderBar.style.display = 'none'; isFontLoading = false; resolve(font); }, 500);
+            }, undefined, function (err) {
+                clearInterval(pInt); loaderBar.style.display = 'none'; isFontLoading = false;
+                alert("中文字体下载失败，请检查网络或您未安装插件！\n\n请您手动搜索插件名：Allow CORS: Access-Control-Allow-Origin\n\n或刷新页面，再次弹出的教程里可以直接跳转！\n\n然后点亮插件按钮 (左侧图标)，最后再次尝试进行中文字体下载！"); reject(err);
+            });
+        });
+    }
+
+    window.add3DText = async () => {
+        const textStr = document.getElementById('text-input').value; if(!textStr) return alert("请先输入文字！");
+        const fontType = document.getElementById('text-font').value;
+        let fontToUse;
+
+        if (fontType === 'cn') {
+            try { fontToUse = await loadChineseFont(); } catch(e) { return; }
+        } else {
+             const enUrl = "https://unpkg.com/three@0.164.0/examples/fonts/helvetiker_regular.typeface.json";
+             fontToUse = await new Promise((res, rej) => new FontLoader().load(enUrl, res, undefined, rej));
+        }
+
+        const geometry = new TextGeometry(textStr, { font: fontToUse, size: 8, depth: 1.5, curveSegments: 6, bevelEnabled: true, bevelThickness: 0.3, bevelSize: 0.2 });
+        geometry.computeBoundingBox(); geometry.translate(-0.5*(geometry.boundingBox.max.x - geometry.boundingBox.min.x), 0, 0);
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })); 
+        mesh.position.set(0, 10, 0); mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.userData.name = '文字: ' + textStr; mesh.userData.id = 'model_' + Date.now();
+        modelGroup.add(mesh); loadedModels.push(mesh); renderModelUI(); selectObject(mesh);
+    };
+
+    window.addTestCube = () => {
+        const geo = new THREE.BoxGeometry(10, 10, 10);
+        const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xcccccc }));
+        mesh.position.y = 5; mesh.castShadow = true; mesh.receiveShadow = true;
+        mesh.userData.name = "测试正方体"; mesh.userData.id = 'model_' + Date.now();
+        modelGroup.add(mesh); loadedModels.push(mesh); renderModelUI(); selectObject(mesh);
+    };
+
+    window.resetView = () => {
+        camera.position.set(0, 150, 0); camera.lookAt(0, 0, 0);
+        orbit.target.set(0, 0, 0); orbit.update();
+    };
+
+    // 文件导入
+    async function handleFileUpload(files) {
+        if(files.length === 0) return;
+        const ld = document.createElement('div');
+        ld.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);z-index:99999;color:white;display:flex;align-items:center;justify-content:center;font-size:20px; font-weight:bold;';
+        ld.innerText = "模型解析中..."; document.body.appendChild(ld);
+        
+        for (let file of files) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            const arrayBuffer = await file.arrayBuffer();
+            if (arrayBuffer.byteLength === 0) continue;
+            let finalObject = null;
+            try {
+                if (ext === 'stp' || ext === 'step') {
+                    let result; try { result = occt.ReadStepFile(new Uint8Array(arrayBuffer), null); } catch(e) { result = occt.ReadStepFile(new Uint8Array(arrayBuffer), {}); }
+                    if (!result || !result.meshes) throw new Error("STP无数据");
+                    finalObject = new THREE.Group();
+                    result.meshes.forEach(mesh => {
+                        const geo = new THREE.BufferGeometry();
+                        geo.setAttribute('position', new THREE.Float32BufferAttribute(mesh.attributes.position.array, 3));
+                        if(mesh.attributes.normal) geo.setAttribute('normal', new THREE.Float32BufferAttribute(mesh.attributes.normal.array, 3));
+                        geo.setIndex(new THREE.Uint32BufferAttribute(mesh.index.array, 1)); 
+                        finalObject.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: mesh.color?new THREE.Color(...mesh.color):0x999999 })));
+                    });
+                } else if (ext === 'stl') {
+                    const geo = new STLLoader().parse(arrayBuffer); geo.computeVertexNormals();
+                    finalObject = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x999999 }));
+                }
+                if (finalObject) {
+                    finalObject.userData.name = file.name; finalObject.userData.id = 'model_' + Date.now() + Math.random();
+                    setupLoadedModel(finalObject);
+                }
+            } catch (err) { alert(`文件[${file.name}] 解析失败: ${err.message}`); }
+        }
+        document.body.removeChild(ld);
+    }
+
+    function setupLoadedModel(obj) {
+        obj.traverse(c => { if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; }});
+        const box = new THREE.Box3().setFromObject(obj); const maxDim = Math.max(...box.getSize(new THREE.Vector3()).toArray());
+        if (maxDim > 200 || maxDim < 2) obj.scale.setScalar(50 / maxDim);
+        const center = new THREE.Box3().setFromObject(obj).getCenter(new THREE.Vector3());
+        obj.position.set(-center.x, -new THREE.Box3().setFromObject(obj).min.y, -center.z);
+        modelGroup.add(obj); loadedModels.push(obj); renderModelUI(); selectObject(obj);
+    }
+
+    // UI 辅助
+    window.applyColorToSelected = (colorHex) => {
+        if(!selectedObject || selectedObject.userData.isTrackGroup) return showHint("请先选中模型！");
+        selectedObject.traverse(child => { if(child.isMesh && child.material) { child.material = child.material.clone(); child.material.color.set(colorHex); } });
+    };
+    window.selectModelList = (id) => { const obj = loadedModels.find(m => m.userData.id === id); if(obj) selectObject(obj); };
+    window.deleteModelList = (id, e) => { e.stopPropagation(); const obj = loadedModels.find(m => m.userData.id === id); if(obj) { transformControl.detach(); modelGroup.remove(obj); loadedModels = loadedModels.filter(m => m.userData.id !== id); selectedObject = null; renderModelUI(); } };
+    window.selectTrackList = (id) => { const t = tracks.find(tr=>tr.id===id); if(t) { tracks.forEach(x=>x.hideControlPoints()); t.showControlPoints(); selectObject(t.group); } };
+    window.deleteTrackList = (id, e) => { e.stopPropagation(); const t = tracks.find(tr=>tr.id===id); if(t) { t.destroy(); tracks = tracks.filter(x=>x.id!==id); renderTrackUI(); transformControl.detach(); selectedObject=null;} };
+    
+    function renderModelUI() {
+        const list = document.getElementById('model-list'); list.innerHTML = loadedModels.length ? '' : '<div style="color:#666; font-size:12px; padding:5px;">暂未导入...</div>';
+        loadedModels.forEach(m => {
+            const div = document.createElement('div'); div.className = 'list-item'; div.setAttribute('onclick', `selectModelList('${m.userData.id}')`);
+            div.innerHTML = `<div class="list-header"><span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px;">${m.userData.name}</span><button onclick="deleteModelList('${m.userData.id}', event)" style="width:auto; padding:2px 5px; color:#ff5555; background:none; border:none;">✖</button></div>`;
+            list.appendChild(div);
+        });
+    }
+    function renderTrackUI() {
+        const list = document.getElementById('track-list'); list.innerHTML = tracks.length ? '' : '<div style="color:#666; font-size:12px; padding:5px;">暂无轨道...</div>';
+        tracks.forEach((t, i) => {
+            const div = document.createElement('div'); div.className = 'list-item'; div.setAttribute('onclick', `selectTrackList('${t.id}')`);
+            div.innerHTML = `<div class="list-header"><span>🎬 轨 ${i+1} (变速点:${t.speedPoints.length})</span><button onclick="deleteTrackList('${t.id}', event)" style="width:auto; padding:2px 5px; color:#ff5555; background:none; border:none;">✖</button></div>`;
+            list.appendChild(div);
+        });
+    }
+    function setupUI() {
+        document.getElementById('btn-add-text').addEventListener('click', window.add3DText);
+        document.getElementById('btn-add-cube').addEventListener('click', window.addTestCube);
+        document.getElementById('btn-reset-view').addEventListener('click', window.resetView);
+        const palette = document.getElementById('color-palette');
+        ["#FFFFFF", "#000000", "#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#00FFFF", "#FF00FF", "#C0C0C0", "#808080", "#800000", "#808000", "#008000", "#800080", "#008080", "#000080"].forEach(c => { 
+            const div = document.createElement('div'); div.style.backgroundColor = c; div.style.aspectRatio = '1'; div.style.cursor = 'pointer'; div.style.borderRadius = '3px'; div.onclick = () => window.applyColorToSelected(c); palette.appendChild(div); 
+        });
+        document.getElementById('btn-toggle-ui').addEventListener('click', () => { uiVisible = !uiVisible; document.querySelectorAll('.panel').forEach(p => p.style.opacity = uiVisible ? '1' : '0'); document.querySelectorAll('.panel').forEach(p => p.style.pointerEvents = uiVisible ? 'auto' : 'none'); });
+        document.getElementById('lookat-mode').addEventListener('change', (e) => { document.getElementById('custom-dir-div').style.display = e.target.value === 'custom' ? 'flex' : 'none'; });
+        document.getElementById('snap-45').addEventListener('change', (e) => transformControl.setRotationSnap(e.target.checked ? Math.PI/4 : null));
+        document.getElementById('draw-type').addEventListener('change', (e) => {
+             document.getElementById('confirm-multi-btn').style.display = e.target.value === 'multi' ? 'block' : 'none';
+             if(currentTool === 'draw') { /* 保持工具激活状态，清除临时点 */ multiPointDraw.spheres.forEach(s=>scene.remove(s)); multiPointDraw.spheres=[]; multiPointDraw.points=[]; }
+        });
+    }
+    function showHint(text) { const h = document.getElementById('temp-ui-layer'); h.innerText = text; h.style.display = 'block'; }
+    function hideHint() { document.getElementById('temp-ui-layer').style.display = 'none'; }
+
+    // ================= 核心类: Track =================
+    class Track {
+        constructor(rawPoints, isForceCurve=false) {
+            this.id = 'track_' + Date.now() + Math.random();
+            this.group = new THREE.Group(); this.group.userData = { isTrackGroup: true, parentTrack: this }; tracksGroup.add(this.group);
+            this.controlPoints = []; this.curve = null; this.tubeMesh = null;
+            this.keyframes = []; this.focusRanges = []; this.rangeLines = []; this.pauses = [];
+            
+            // 变速点结构: { t: 0-1, type: 'accel'|'decel'|'const', factor: 1.0, helperMesh: mesh }
+            // 初始自带起点(常速)和终点(常速)
+            this.speedPoints = []; 
+
+            let targetPoints = [];
+            if(rawPoints.length <= 3 || isForceCurve) targetPoints = rawPoints;
+            else { 
+                // 降采样
+                const ptCount = Math.min(rawPoints.length, 8); 
+                for(let i=0; i<ptCount; i++) targetPoints.push(rawPoints[Math.floor(i * (rawPoints.length-1)/(ptCount-1))]); 
+            }
+            targetPoints.forEach((p, i) => { 
+                let cloneP = p.clone(); 
+                if(!isForceCurve && rawPoints.length>3) cloneP.y += 5; // 手绘稍微抬高
+                this.createControlPoint(cloneP, i===0); 
+            });
+            
+            this.updateCurve();
+            // 初始化速度点
+            this.addSpeedPoint(0, 'const', 1.0, false);
+            this.addSpeedPoint(1, 'const', 1.0, false);
+            
+            tracks.push(this); renderTrackUI(); this.showControlPoints(); selectObject(this.group);
+        }
+
+        createControlPoint(pos, isStart) {
+            const sp = new THREE.Mesh(new THREE.SphereGeometry(1.2), new THREE.MeshBasicMaterial({ color: isStart?0x00ff00:0xff3333 }));
+            sp.position.copy(pos); sp.userData = { isControlPoint: true, parentTrack: this };
+            this.group.add(sp); this.controlPoints.push(sp);
+        }
+
+        updateCurve() {
+            const pts = this.controlPoints.map(c => c.position.clone()); if (pts.length < 2) return;
+            this.curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5);
+            if (this.tubeMesh) this.group.remove(this.tubeMesh);
+            this.tubeMesh = new THREE.Mesh(new THREE.TubeGeometry(this.curve, pts.length * 20, 0.5, 8, false), new THREE.MeshStandardMaterial({ color: 0x4da6ff, roughness: 0.2, opacity: 0.8, transparent: true }));
+            this.tubeMesh.userData = { isTrackTube: true, parentTrack: this };
+            this.group.add(this.tubeMesh);
+            this.rebuildVisuals();
+        }
+
+        rebuildVisuals() {
+            // 更新所有 Helper 位置
+            this.keyframes.forEach(k => k.helperMesh.position.copy(this.curve.getPointAt(k.t)));
+            this.pauses.forEach(p => p.helperMesh.position.copy(this.curve.getPointAt(p.t)));
+            this.speedPoints.forEach(s => s.helperMesh.position.copy(this.curve.getPointAt(s.t)));
+            this.rangeLines.forEach(l => this.group.remove(l)); this.rangeLines = [];
+            this.focusRanges.forEach(fr => {
+                const pts = []; for(let t=fr.startT; t<=fr.endT; t+=0.01) pts.push(this.curve.getPointAt(t)); pts.push(this.curve.getPointAt(fr.endT));
+                const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 20, 0.7, 8, false), new THREE.MeshBasicMaterial({color:0xffaa00, wireframe:true}));
+                this.group.add(line); this.rangeLines.push(line);
+            });
+        }
+
+        addCameraKeyframe(t) {
+            const g = new THREE.Group();
+            g.add(new THREE.Mesh(new THREE.BoxGeometry(2,2,4), new THREE.MeshStandardMaterial({color: 0xaa55ff})));
+            g.position.copy(this.curve.getPointAt(t)); g.lookAt(this.curve.getPointAt(Math.min(1, t+0.01)));
+            g.userData = { isCameraHelper: true, parentTrack: this };
+            this.group.add(g); this.keyframes.push({t, helperMesh:g}); this.keyframes.sort((a,b)=>a.t-b.t);
+            selectObject(g); transformControl.setMode('rotate');
+        }
+
+        addPausePoint(t, dur) {
+            const b = new THREE.Mesh(new THREE.BoxGeometry(2,2,2), new THREE.MeshBasicMaterial({color: 0xddcc00}));
+            b.position.copy(this.curve.getPointAt(t)); b.userData = { isPauseHelper: true, parentTrack: this };
+            this.group.add(b); this.pauses.push({t, duration:dur, helperMesh:b}); renderTrackUI();
+        }
+
+        addFocusRange(startT, endT, targetData) {
+            if(startT>endT) [startT, endT] = [endT, startT];
+            this.focusRanges.push({startT, endT, targetData}); this.rebuildVisuals();
+        }
+
+        addSpeedPoint(t, type, factor, selectIt=true) {
+            // 移除同位置附近的旧点
+            this.speedPoints = this.speedPoints.filter(p => Math.abs(p.t - t) > 0.01);
+            const col = type==='accel' ? 0x00ffff : (type==='decel' ? 0xff00ff : 0xaaaaaa);
+            const m = new THREE.Mesh(new THREE.OctahedronGeometry(1.5), new THREE.MeshBasicMaterial({color: col}));
+            m.position.copy(this.curve.getPointAt(t)); m.userData = { isSpeedHelper: true, parentTrack: this, info: {type, factor} };
+            this.group.add(m); 
+            this.speedPoints.push({ t, type, factor, helperMesh: m });
+            this.speedPoints.sort((a,b) => a.t - b.t);
+            // 强制最后一个点是 const/restore，或者只是确保有终点。
+            // 逻辑上：如果用户加在最后，那它就是最后。但我们必须确保 t=1 处有状态，否则插值会出问题。
+            // 简化：如果 t=1 处没有点，自动补一个 t=1, factor=1.0 (或延续上一个速度?) 
+            // 按照需求：最后一点必须常速。我们在动画计算时强制 t=1 为常速。
+            if(selectIt) selectObject(m);
+        }
+
+        showControlPoints() { this.group.children.forEach(c => { if(c !== this.tubeMesh) c.visible=true; }); if(this.tubeMesh) this.tubeMesh.material.color.setHex(0xffaa00); }
+        hideControlPoints() { this.group.children.forEach(c => { if(c !== this.tubeMesh) c.visible=false; }); if(this.tubeMesh) this.tubeMesh.material.color.setHex(0x4da6ff); }
+        destroy() { tracksGroup.remove(this.group); }
+
+        // 获取 t 时刻的速度倍率 (线性插值)
+        getSpeedFactorAt(t) {
+            if(this.speedPoints.length === 0) return 1.0;
+            // 找到 t 左边最近的点 A 和 右边最近的点 B
+            let pA = this.speedPoints[0];
+            let pB = this.speedPoints[this.speedPoints.length - 1];
+            
+            for(let i=0; i<this.speedPoints.length-1; i++) {
+                if(t >= this.speedPoints[i].t && t <= this.speedPoints[i+1].t) {
+                    pA = this.speedPoints[i]; pB = this.speedPoints[i+1]; break;
+                }
+            }
+            if(t < pA.t) return pA.factor; // 头部
+            if(t > pB.t) return pB.factor; // 尾部
+            
+            const ratio = (t - pA.t) / (pB.t - pA.t);
+            return pA.factor + (pB.factor - pA.factor) * ratio;
+        }
+    }
+
+    // ================= 工具交互 =================
+    function setTool(tool, btnId) {
+        currentTool = tool;
+        document.querySelectorAll('.tool-btn').forEach(b => { b.classList.remove('active'); b.style.color='white'; });
+        if(tool) {
+            document.getElementById(btnId).classList.add('active'); document.getElementById(btnId).style.color='#000';
+            transformControl.detach(); orbit.enabled = (tool !== 'draw');
+            const type = document.getElementById('draw-type').value;
+
+            if(tool==='draw') {
+                if(type === 'multi') showHint("🖌️ 点击场景添加点，完成后点击【确认生成】");
+                else showHint("🖌️ 按住左键绘制，或点击添加两点/三点");
+            }
+            if(tool==='addCamera') showHint("🎥 点击轨道添加运镜关键帧");
+            if(tool==='addFocus') { focusState=0; showHint("🎯 点击轨道选择起点"); }
+            if(tool==='addPause') showHint("⏳ 点击轨道添加停顿点");
+            if(tool==='addSpeed') showHint("⚡ 点击轨道添加变速节点");
+        } else {
+            orbit.enabled = true; hideHint();
+            multiPointDraw.spheres.forEach(s=>scene.remove(s)); multiPointDraw.spheres=[]; multiPointDraw.points=[];
+        }
+    }
+
+    window.finishMultiCurve = () => {
+        if(multiPointDraw.points.length < 2) return alert("至少需要两个点！");
+        new Track(multiPointDraw.points, true);
+        multiPointDraw.spheres.forEach(s=>scene.remove(s)); multiPointDraw.spheres=[]; multiPointDraw.points=[];
+        showHint("✅ 弧线已生成");
+    };
+
+    // 焦点与变速逻辑
+    window.cancelFocusRange = () => { document.getElementById('focus-dialog').style.display='none'; setTool(null, null); if(tempFocusMarkerStart) scene.remove(tempFocusMarkerStart); if(tempFocusMarkerEnd) scene.remove(tempFocusMarkerEnd); };
+    window.confirmFocusRange = () => {
+        let data = {};
+        if(document.getElementById('focus-type').value === 'model') {
+            const id = document.getElementById('focus-target-model').value;
+            if(!id) return alert("未选择模型");
+            data = { type: 'model', id };
+        } else {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshBasicMaterial({color:0xff00aa});
+            const c1 = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,10), mat); c1.rotation.x=Math.PI/2; c1.position.z=-5;
+            group.add(c1); group.position.copy(tempFocusTrack.curve.getPointAt((tempFocusStartT+tempFocusEndT)/2));
+            tempFocusTrack.group.add(group); group.userData = { isRangeDirHelper:true, parentTrack: tempFocusTrack };
+            data = { type: 'dir', helper: group };
+            setTimeout(()=>selectObject(group), 100);
+        }
+        tempFocusTrack.addFocusRange(tempFocusStartT, tempFocusEndT, data);
+        window.cancelFocusRange();
+    };
+
+    let tempSpeedTrack = null; let tempSpeedT = 0;
+    window.cancelSpeedPoint = () => { document.getElementById('speed-dialog').style.display='none'; setTool(null, null); };
+    window.confirmSpeedPoint = () => {
+        const type = document.getElementById('speed-type').value;
+        const val = parseFloat(document.getElementById('speed-val').value);
+        tempSpeedTrack.addSpeedPoint(tempSpeedT, type, val);
+        window.cancelSpeedPoint();
+    };
+
+    function setupEvents() {
+        document.getElementById('file-input').addEventListener('change', (e) => handleFileUpload(e.target.files));
+        
+        ['draw', 'addCamera', 'addFocus', 'addPause', 'addSpeed'].forEach(t => {
+            const btn = document.getElementById('btn-' + (t==='draw'?'toggle-draw':t.replace(/([A-Z])/g, '-$1').toLowerCase()));
+            btn.addEventListener('click', () => currentTool===t ? setTool(null) : setTool(t, btn.id));
+        });
+
+        const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+        
+        container.addEventListener('pointerdown', (e) => {
+            if(isPlaying || e.button !== 0) return;
+            // 绘制逻辑
+            if(currentTool === 'draw') {
+                const type = document.getElementById('draw-type').value;
+                if(type === 'free') { isDrawing=true; rawDrawPoints=[]; ctx.clearRect(0,0,tempCanvas.width,tempCanvas.height); return; }
+                
+                raycaster.setFromCamera(mouse, camera); 
+                const intersect = raycaster.intersectObject(groundPlane); // 简化，只在地面绘制或基于网格
+                // 优化：与网格平面求交
+                const plane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+                const target = new THREE.Vector3();
+                raycaster.ray.intersectPlane(plane, target);
+                
+                if(target) {
+                    if(type === 'multi') {
+                        multiPointDraw.points.push(target);
+                        const sp = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 16), new THREE.MeshBasicMaterial({color:0xffff00}));
+                        sp.position.copy(target); scene.add(sp); multiPointDraw.spheres.push(sp);
+                    } else {
+                        tempDrawPoints.push(target);
+                        const sp = new THREE.Mesh(new THREE.SphereGeometry(1), new THREE.MeshBasicMaterial({color:0x00ff00}));
+                        sp.position.copy(target); scene.add(sp); tempDrawSpheres.push(sp);
+                        if(type==='line' && tempDrawPoints.length===2) { new Track(tempDrawPoints); tempDrawPoints=[]; tempDrawSpheres.forEach(s=>scene.remove(s)); tempDrawSpheres=[]; setTool(null); }
+                        else if(type==='curve' && tempDrawPoints.length===3) { new Track(tempDrawPoints, true); tempDrawPoints=[]; tempDrawSpheres.forEach(s=>scene.remove(s)); tempDrawSpheres=[]; setTool(null); }
+                    }
+                }
+                return;
+            }
+
+            if(transformControl.axis) return;
+            
+            mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1;
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 点击交互
+            const hits = raycaster.intersectObjects([...modelGroup.children, ...tracksGroup.children.flatMap(g=>g.children)], true);
+            
+            if(currentTool && hits.length > 0) {
+                let obj = hits[0].object;
+                if(obj.userData.isTrackTube) {
+                    const track = obj.userData.parentTrack;
+                    const pt = hits[0].point;
+                    // 计算 t
+                    let minD=Infinity, bestT=0;
+                    for(let i=0; i<=200; i++){ let t=i/200; let d=track.curve.getPointAt(t).distanceToSquared(track.group.worldToLocal(pt.clone())); if(d<minD){minD=d; bestT=t;} }
+                    
+                    if(currentTool==='addCamera') { track.addCameraKeyframe(bestT); setTool(null); }
+                    else if(currentTool==='addPause') { 
+                        const d = prompt("停顿几秒?", "3"); if(d) track.addPausePoint(bestT, parseFloat(d)); setTool(null); 
+                    }
+                    else if(currentTool==='addSpeed') {
+                        tempSpeedTrack = track; tempSpeedT = bestT;
+                        document.getElementById('speed-dialog').style.display='block';
+                    }
+                    else if(currentTool==='addFocus') {
+                        if(focusState===0) {
+                            tempFocusTrack=track; tempFocusStartT=bestT; focusState=1; showHint("🎯 再点击选择终点");
+                            tempFocusMarkerStart = new THREE.Mesh(new THREE.SphereGeometry(1.5), new THREE.MeshBasicMaterial({color:0xffaa00}));
+                            tempFocusMarkerStart.position.copy(pt); scene.add(tempFocusMarkerStart);
+                        } else {
+                            if(track!==tempFocusTrack) return alert("必须同一轨道");
+                            tempFocusEndT=bestT;
+                            tempFocusMarkerEnd = new THREE.Mesh(new THREE.SphereGeometry(1.5), new THREE.MeshBasicMaterial({color:0xff00ff}));
+                            tempFocusMarkerEnd.position.copy(pt); scene.add(tempFocusMarkerEnd);
+                            const sel = document.getElementById('focus-target-model'); sel.innerHTML='';
+                            loadedModels.forEach(m=>sel.innerHTML+=`<option value="${m.userData.id}">${m.userData.name}</option>`);
+                            document.getElementById('focus-dialog').style.display='block';
+                        }
+                    }
+                }
+                return;
+            }
+
+            // 普通选择
+            if(hits.length > 0) {
+                let obj = hits[0].object;
+                // 向上查找 group 或 特殊物体
+                while(obj.parent && !obj.userData.id && !obj.userData.isTrackGroup && !obj.userData.isControlPoint && !obj.userData.isCameraHelper && !obj.userData.isPauseHelper && !obj.userData.isSpeedHelper) obj = obj.parent;
+                
+                if(obj.userData.isTrackTube) { 
+                    const t = obj.userData.parentTrack; 
+                    tracks.forEach(tr=>tr.hideControlPoints()); t.showControlPoints(); selectObject(t.group); 
+                }
+                else if(obj.userData.isControlPoint || obj.userData.isCameraHelper || obj.userData.isPauseHelper || obj.userData.isSpeedHelper) {
+                    tracks.forEach(tr=>tr.hideControlPoints()); obj.userData.parentTrack.showControlPoints(); selectObject(obj);
+                    if(obj.userData.isCameraHelper) transformControl.setMode('rotate'); else transformControl.setMode('translate');
+                }
+                else { tracks.forEach(tr=>tr.hideControlPoints()); selectObject(obj); transformControl.setMode('translate'); }
+            } else {
+                transformControl.detach(); selectedObject=null; tracks.forEach(tr=>tr.hideControlPoints());
+            }
+        });
+
+        container.addEventListener('pointermove', e => {
+            mouse.x = (e.clientX/window.innerWidth)*2-1; mouse.y = -(e.clientY/window.innerHeight)*2+1;
+            if(isDrawing) {
+                raycaster.setFromCamera(mouse, camera); const t = new THREE.Vector3(); raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),0), t);
+                if(t) { rawDrawPoints.push(t); ctx.fillStyle='#4da6ff'; ctx.beginPath(); ctx.arc(e.clientX, e.clientY, 2, 0, Math.PI*2); ctx.fill(); }
+            }
+        });
+
+        // 自定义滚轮缩放逻辑：实现“指哪缩哪”
+        container.addEventListener('wheel', (e) => {
+            if(isPlaying) return;
+            e.preventDefault();
+
+            const rect = container.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+            
+            // 获取从相机到鼠标在三维空间中的射线方向
+            const dir = raycaster.ray.direction.normalize();
+            
+            // 获取当前相机到旋转中心（Target）的距离
+            const distToTarget = camera.position.distanceTo(orbit.target);
+            
+            // 定义缩放倍率
+            const zoomScale = 0.95; 
+            const factor = e.deltaY > 0 ? (1/zoomScale) : zoomScale; 
+            
+            // 计算移动距离：根据距离比例缩放，使得鼠标指向的点在视觉上保持稳定
+            const moveDist = distToTarget * (1 - factor);
+            const offset = dir.clone().multiplyScalar(moveDist);
+            
+            camera.position.add(offset);
+            orbit.target.add(offset); // 同时移动 Target，保持旋转中心跟随
+            orbit.update();
+        }, { passive: false });
+
+        window.addEventListener('pointerup', () => {
+            if(isDrawing) {
+                isDrawing=false; ctx.clearRect(0,0,tempCanvas.width, tempCanvas.height);
+                if(rawDrawPoints.length>5) new Track(rawDrawPoints);
+                setTool(null);
+            }
+        });
+
+        window.addEventListener('keydown', e => {
+            if(isPlaying) { if(e.key==='Escape') stopAnimation(); return; }
+            const key = e.key.toLowerCase();
+            if(key==='t') transformControl.setMode('translate');
+            if(key==='r') transformControl.setMode('rotate');
+            if(key==='s') transformControl.setMode('scale');
+            if(e.key==='Delete' && selectedObject) {
+                const ud = selectedObject.userData;
+                if(ud.isControlPoint) {
+                    const t = ud.parentTrack; if(t.controlPoints.length<=2) return alert("点太少了");
+                    t.controlPoints = t.controlPoints.filter(p=>p!==selectedObject); t.group.remove(selectedObject); t.updateCurve();
+                } else if(ud.isCameraHelper) {
+                    const t = ud.parentTrack; t.keyframes = t.keyframes.filter(k=>k.helperMesh!==selectedObject); t.group.remove(selectedObject);
+                } else if(ud.isSpeedHelper) {
+                    const t = ud.parentTrack; t.speedPoints = t.speedPoints.filter(k=>k.helperMesh!==selectedObject); t.group.remove(selectedObject);
+                } else if(ud.isTrackGroup) {
+                    const t = ud.parentTrack; t.destroy(); tracks = tracks.filter(x=>x!==t); renderTrackUI();
+                } else if(ud.id) {
+                    modelGroup.remove(selectedObject); loadedModels = loadedModels.filter(m=>m!==selectedObject); renderModelUI();
+                }
+                transformControl.detach(); selectedObject=null;
+            }
+        });
+
+        document.getElementById('btn-play-top').onclick = () => startAnimation(false);
+        document.getElementById('btn-record-top').onclick = () => startAnimation(true);
+        window.onresize = () => { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); tempCanvas.width=window.innerWidth; tempCanvas.height=window.innerHeight; };
+    }
+
+    function selectObject(o) { transformControl.attach(o); selectedObject=o; }
+
+    // ================= 动画引擎 (含变速) =================
+    // 每一个轨道独立计算自己的状态。
+    // 为了支持变速，我们不再简单的 t = elapsed / duration。
+    // 而是需要积分: currentT += (dt / BaseDuration) * speedFactor(currentT)
+    
+    let activeTrackIndex = 0;
+    let currentTrackT = 0; // 0.0 - 1.0
+    let lastFrameTime = 0;
+    let isPausedInTrack = false;
+    let pauseRemaining = 0;
+
+    function startAnimation(record) {
+        if(tracks.length===0) return alert("请先绘制轨道");
+        setTool(null); transformControl.detach(); 
+        
+        // 关键修复：完全隐藏轨道组，防止录制时出现轨道线条
+        tracksGroup.visible = false;
+        
+        gridHelper.visible=false; helpersGroup.visible=false;
+        if(uiVisible) document.getElementById('btn-toggle-ui').click();
+        document.getElementById('top-bar').style.display='none';
+        
+        isPlaying = true; 
+        animStartTime = performance.now();
+        lastFrameTime = animStartTime;
+        activeTrackIndex = 0;
+        currentTrackT = 0;
+        isPausedInTrack = false;
+
+        originalCameraState.pos.copy(camera.position); originalCameraState.quat.copy(camera.quaternion);
+        document.getElementById('recording-indicator').style.display='block';
+
+        if(record) {
+            const [w, h] = document.getElementById('video-res').value.split('x').map(Number);
+            originalW = window.innerWidth; originalH = window.innerHeight;
+            renderer.setSize(w, h); camera.aspect = w/h; camera.updateProjectionMatrix();
+            renderer.domElement.style.width='100vw'; renderer.domElement.style.height='100vh'; renderer.domElement.style.objectFit='contain';
+            
+            recordedChunks = [];
+            const stream = renderer.domElement.captureStream(60);
+            // 【修改处 1】优先尝试 MP4 格式
+	    let mime = 'video/mp4'; 
+	    // 如果浏览器不支持 MP4 (如 Firefox)，则回退到 WebM
+	    if (!MediaRecorder.isTypeSupported(mime)) {
+    		console.warn("当前浏览器不支持 MP4 录制，已自动回退到 WebM");
+   	 	mime = 'video/webm;codecs=vp9';
+	    }
+            
+            mediaRecorder = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 15000000 });
+            mediaRecorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, {type: mime});
+                const ext = mime.includes('mp4') ? '.mp4' : '.webm';
+		const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Pro_Shot_${Date.now()}${ext}`;
+                a.click();
+            };
+            mediaRecorder.start();
+        }
+    }
+
+    function stopAnimation() {
+        isPlaying = false;
+        if(mediaRecorder && mediaRecorder.state!=='inactive') {
+            mediaRecorder.stop();
+            renderer.setSize(originalW, originalH); camera.aspect = originalW/originalH; camera.updateProjectionMatrix(); renderer.domElement.style.objectFit='fill';
+        }
+        camera.position.copy(originalCameraState.pos); camera.quaternion.copy(originalCameraState.quat);
+        
+        // 恢复轨道显示
+        tracksGroup.visible = true;
+        
+        gridHelper.visible=true; helpersGroup.visible=true; tracks.forEach(t=>t.hideControlPoints());
+        document.getElementById('recording-indicator').style.display='none'; document.getElementById('top-bar').style.display='flex';
+    }
+
+    function animateLoop() {
+        requestAnimationFrame(animateLoop);
+        
+        if(isPlaying) {
+            const now = performance.now();
+            const dt = (now - lastFrameTime) / 1000; // seconds
+            lastFrameTime = now;
+
+            if(activeTrackIndex >= tracks.length) { stopAnimation(); return; }
+            
+            const track = tracks[activeTrackIndex];
+            
+            // 获取用户设置的基础时长
+            const unit = document.getElementById('anim-duration-unit').value;
+            let baseDuration = parseFloat(document.getElementById('anim-duration-val').value);
+            if(unit === 'm') baseDuration *= 60;
+            // 均分给每个轨道 (简化逻辑，实际可按长度分配)
+            const trackBaseDuration = baseDuration / tracks.length;
+
+            if(isPausedInTrack) {
+                pauseRemaining -= dt;
+                if(pauseRemaining <= 0) isPausedInTrack = false;
+            } else {
+                // 检查是否有停顿点被触发
+                // 简单的范围检测：如果上一帧 T < pauseT 且 当前 T >= pauseT
+                // 但由于变速，我们需要先计算 deltaT
+                const speedFactor = track.getSpeedFactorAt(currentTrackT);
+                const tIncrement = (dt / trackBaseDuration) * speedFactor;
+                const nextT = currentTrackT + tIncrement;
+
+                // 检测停顿
+                let hitPause = null;
+                for(let p of track.pauses) {
+                    if(currentTrackT < p.t && nextT >= p.t) {
+                        hitPause = p; break;
+                    }
+                }
+
+                if(hitPause) {
+                    currentTrackT = hitPause.t;
+                    isPausedInTrack = true;
+                    pauseRemaining = hitPause.duration;
+                } else {
+                    currentTrackT = nextT;
+                }
+
+                if(currentTrackT >= 1.0) {
+                    currentTrackT = 0;
+                    activeTrackIndex++;
+                    return; // 下一帧处理新轨道
+                }
+            }
+
+            // 计算相机
+            const pos = track.curve.getPointAt(currentTrackT);
+            const worldPos = track.group.localToWorld(pos.clone());
+            camera.position.copy(worldPos);
+
+            // 计算朝向
+            let targetQuat = new THREE.Quaternion();
+            const tempCam = camera.clone();
+            
+            // 1. 锁焦优先
+            let focused = false;
+            for(let fr of track.focusRanges) {
+                if(currentTrackT >= fr.startT && currentTrackT <= fr.endT) {
+                    if(fr.targetData.type === 'model') {
+                        const m = loadedModels.find(x => x.userData.id === fr.targetData.id);
+                        if(m) { const wp = new THREE.Vector3(); m.getWorldPosition(wp); tempCam.lookAt(wp); targetQuat.copy(tempCam.quaternion); focused=true; }
+                    } else {
+                        const dir = new THREE.Vector3(0,0,-1).applyQuaternion(fr.targetData.helper.quaternion);
+                        tempCam.lookAt(worldPos.clone().add(dir)); targetQuat.copy(tempCam.quaternion); focused=true;
+                    }
+                    break;
+                }
+            }
+
+            // 2. 关键帧混合
+            let kfQuat = null; let kfW = 0;
+            if(!focused) {
+                // 寻找最近的关键帧
+                track.keyframes.forEach(kf => {
+                    const dist = Math.abs(currentTrackT - kf.t);
+                    if(dist < 0.1) { // 影响范围
+                         const w = 1 - dist/0.1;
+                         const q = new THREE.Quaternion(); kf.helperMesh.getWorldQuaternion(q);
+                         if(!kfQuat) { kfQuat = q; kfW = w; }
+                         else { kfQuat.slerp(q, 0.5); } // 简单混合
+                    }
+                });
+            }
+
+            // 3. 全局默认
+            if(!focused && !kfQuat) {
+                const mode = document.getElementById('lookat-mode').value;
+                if(mode==='forward') { 
+                    const nextP = track.group.localToWorld(track.curve.getPointAt(Math.min(1, currentTrackT+0.01)));
+                    tempCam.lookAt(nextP); targetQuat.copy(tempCam.quaternion);
+                } else if(mode==='closest') {
+                    let minD=Infinity, target=null;
+                    loadedModels.forEach(m=>{ const d=m.position.distanceToSquared(worldPos); if(d<minD){minD=d; target=m;} });
+                    if(target) { const wp=new THREE.Vector3(); target.getWorldPosition(wp); tempCam.lookAt(wp); }
+                    targetQuat.copy(tempCam.quaternion);
+                } else if(mode==='custom') {
+                    const v = new THREE.Vector3(Number(document.getElementById('dir-x').value), Number(document.getElementById('dir-y').value), Number(document.getElementById('dir-z').value));
+                    tempCam.lookAt(worldPos.clone().add(v)); targetQuat.copy(tempCam.quaternion);
+                } else {
+                    tempCam.lookAt(0,0,0); targetQuat.copy(tempCam.quaternion);
+                }
+            }
+
+            // 最终合成
+            if(kfQuat) {
+                if(!targetQuat.equals(new THREE.Quaternion(0,0,0,1))) targetQuat.slerp(kfQuat, kfW);
+                else targetQuat = kfQuat;
+            }
+
+            const smooth = parseInt(document.getElementById('camera-smoothness').value)/100;
+            camera.quaternion.slerp(targetQuat, 1.0 - smooth*0.95);
+        }
+        
+        renderer.render(scene, camera);
+    }
+
+    initSystem();
+</script>
+</body>
+</html>
